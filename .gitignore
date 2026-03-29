@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+coverage/
+
+# Environment — copy env.dev to .env and fill in secrets
+.env
+*.local
+
+# Claude Code local settings (project instructions CLAUDE.md are tracked)
+.claude/

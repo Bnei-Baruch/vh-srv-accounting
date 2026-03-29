@@ -1,0 +1,31 @@
+services:
+  vh-srv-accounting:
+    image: "${IMAGE_NAME}"
+    container_name: 'vh-srv-accounting'
+    restart: unless-stopped
+    environment:
+      APP_PORT: "8190"
+      APP_ENV: ${APP_ENV}
+      GIT_SHA: ${GIT_SHA}
+      PGHOST: ${PGHOST}
+      PGPORT: ${PGPORT:-5432}
+      PGUSER: ${PGUSER}
+      PGPASSWORD: ${PGPASSWORD}
+      PGDATABASE: ${PGDATABASE}
+      KEYCLOAK_SERVER_URL: ${KEYCLOAK_SERVER_URL}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
+      QB_CLIENT_ID: ${QB_CLIENT_ID}
+      QB_CLIENT_SECRET: ${QB_CLIENT_SECRET}
+      QB_ENVIRONMENT: ${QB_ENVIRONMENT}
+      QB_REDIRECT_URI: ${QB_REDIRECT_URI}
+      SENTRY_DSN: ${SENTRY_DSN}
+    mem_limit: 250M
+    ports:
+      - "8190:8190"
+
+networks:
+  default:
+    external:
+      name: vh
