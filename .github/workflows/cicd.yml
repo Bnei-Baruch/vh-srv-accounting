@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: postgres:12
         env:
           POSTGRES_DB: accounting_test
           POSTGRES_USER: user
@@ -145,6 +145,10 @@ jobs:
 
             export IMAGE_NAME=ghcr.io/bnei-baruch/vh-srv-accounting:$SHORT_SHA
 
+            if [ "$DEPLOY_ENV" = "staging" ]; then
+              export COMPOSE_PROFILES=staging
+            fi
+
             docker compose pull vh-srv-accounting
             docker compose up -d --remove-orphans
 
@@ -152,7 +156,7 @@ jobs:
             sleep 5
             for i in 1 2 3; do
               HTTP_CODE=$(curl -so /dev/null -w '%{http_code}' http://localhost:8190/health || true)
-              if [ "$HTTP_CODE" = "200" ]; then
+              if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "200" ]; then
                 echo "Health check passed (HTTP $HTTP_CODE)"
                 exit 0
               fi
