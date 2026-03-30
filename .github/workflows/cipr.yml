@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: postgres:12
         env:
           POSTGRES_DB: accounting_test
           POSTGRES_USER: user
