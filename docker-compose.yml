@@ -9,8 +9,6 @@ services:
       POSTGRES_USER: ${PGUSER:-user}
       POSTGRES_PASSWORD: ${PGPASSWORD:-password}
       POSTGRES_DB: ${PGDATABASE:-accounting}
-    ports:
-      - "${PGPORT:-5435}:5432"
   vh-srv-accounting:
     image: "${IMAGE_NAME}"
     container_name: 'vh-srv-accounting'
