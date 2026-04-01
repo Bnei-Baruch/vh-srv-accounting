@@ -30,6 +30,8 @@ export const config = {
   qbClientSecret: requireEnv('QB_CLIENT_SECRET'),
   qbEnvironment: optionalEnv('QB_ENVIRONMENT', 'sandbox'),
   qbRedirectUri: requireEnv('QB_REDIRECT_URI'),
+  // 64-char hex string (32 bytes) — AES-256 key for encrypting OAuth tokens at rest
+  qbTokenEncryptionKey: requireEnv('QB_TOKEN_ENCRYPTION_KEY'),
 
   sentryDsn: optionalEnv('SENTRY_DSN'),
 } as const;
