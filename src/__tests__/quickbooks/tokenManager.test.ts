@@ -123,4 +123,51 @@ describe('TokenManager', () => {
     await manager.start();
     expect(oauthClient.refreshAccessToken).not.toHaveBeenCalled();
   });
+
+  describe('removeCompany', () => {
+    test('does not throw for a connected company', () => {
+      expect(() => manager.removeCompany('123')).not.toThrow();
+    });
+
+    test('is idempotent — does not throw for an unknown company', () => {
+      expect(() => manager.removeCompany('never-existed')).not.toThrow();
+    });
+
+    test('clears an in-flight refresh lock so a new refresh can start independently', async () => {
+      // Simulate a long-running refresh by never resolving
+      let resolveLock!: () => void;
+      const slowRefresh = new Promise<void>((resolve) => { resolveLock = resolve; });
+      (oauthClient.refreshAccessToken as jest.Mock).mockReturnValue(slowRefresh);
+
+      const token = makeToken('abc', 0); // expired — triggers refresh
+      mockStore.getToken.mockResolvedValue(token);
+      mockStore.updateTokens.mockResolvedValue(undefined);
+
+      // Kick off first refresh (lock is now held)
+      const firstRefresh = manager.getAccessToken('abc');
+
+      // Remove the company — should clear the lock
+      manager.removeCompany('abc');
+
+      // Now mock a fast refresh for the next call
+      (oauthClient.refreshAccessToken as jest.Mock).mockResolvedValue({
+        accessToken: 'new-at',
+        refreshToken: 'new-rt',
+        tokenType: 'Bearer',
+        expiresAt: new Date(Date.now() + 3600 * 1000),
+        refreshTokenExpiresAt: new Date(Date.now() + 180 * 24 * 3600 * 1000),
+        realmId: 'abc',
+      });
+      const freshToken = makeToken('abc', 3600 * 1000);
+      freshToken.accessToken = 'new-at';
+      mockStore.getToken.mockResolvedValue(freshToken);
+
+      const secondRefresh = await manager.getAccessToken('abc');
+      expect(secondRefresh).toBe('new-at');
+
+      // Let the first refresh settle to avoid unhandled promise rejection
+      resolveLock();
+      await firstRefresh.catch(() => undefined);
+    });
+  });
 });

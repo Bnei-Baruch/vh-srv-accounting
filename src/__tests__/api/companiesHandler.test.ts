@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { createCompaniesRouter } from '../../api/quickbooks/companiesHandler';
 import { TokenStore, OAuthToken } from '../../quickbooks/tokenStore';
+import { QbApiClient } from '../../quickbooks/apiClient';
 import { createTestApp } from '../setup';
 
 jest.mock('keycloak-connect');
@@ -24,6 +25,7 @@ function makeToken(id: number, companyId = '123'): OAuthToken {
 
 describe('GET /companies', () => {
   let mockStore: jest.Mocked<TokenStore>;
+  let mockQbClient: jest.Mocked<QbApiClient>;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -35,11 +37,12 @@ describe('GET /companies', () => {
       updateCompany: jest.fn(),
       deleteToken: jest.fn(),
     } as unknown as jest.Mocked<TokenStore>;
+    mockQbClient = {} as jest.Mocked<QbApiClient>;
   });
 
   test('returns sanitized list without token fields', async () => {
     mockStore.getAllTokens.mockResolvedValue([makeToken(1), makeToken(2, '456')]);
-    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore));
+    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore, mockQbClient));
     const res = await request(app).get('/companies');
 
     expect(res.status).toBe(200);
@@ -56,7 +59,7 @@ describe('GET /companies', () => {
 
   test('GET /:id returns company by id', async () => {
     mockStore.getAllTokens.mockResolvedValue([makeToken(42)]);
-    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore));
+    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore, mockQbClient));
     const res = await request(app).get('/companies/42');
 
     expect(res.status).toBe(200);
@@ -64,14 +67,14 @@ describe('GET /companies', () => {
   });
 
   test('GET /:id returns 400 for non-numeric id', async () => {
-    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore));
+    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore, mockQbClient));
     const res = await request(app).get('/companies/abc');
     expect(res.status).toBe(400);
   });
 
   test('GET /:id returns 404 when company not found', async () => {
     mockStore.getAllTokens.mockResolvedValue([]);
-    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore));
+    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore, mockQbClient));
     const res = await request(app).get('/companies/999');
     expect(res.status).toBe(404);
   });
@@ -81,7 +84,7 @@ describe('GET /companies', () => {
     updated.companyName = 'New Name';
     mockStore.updateCompany.mockResolvedValue(updated);
 
-    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore));
+    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore, mockQbClient));
     const res = await request(app).patch('/companies/1').send({ companyName: 'New Name' });
 
     expect(res.status).toBe(200);
@@ -93,7 +96,7 @@ describe('GET /companies', () => {
     const updated = { ...makeToken(1), enabled: false };
     mockStore.updateCompany.mockResolvedValue(updated);
 
-    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore));
+    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore, mockQbClient));
     const res = await request(app).patch('/companies/1').send({ enabled: false });
 
     expect(res.status).toBe(200);
@@ -101,48 +104,48 @@ describe('GET /companies', () => {
   });
 
   test('PATCH /:id returns 400 when no fields provided', async () => {
-    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore));
+    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore, mockQbClient));
     const res = await request(app).patch('/companies/1').send({});
     expect(res.status).toBe(400);
   });
 
   test('PATCH /:id returns 400 for non-numeric id', async () => {
-    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore));
+    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore, mockQbClient));
     const res = await request(app).patch('/companies/abc').send({ enabled: true });
     expect(res.status).toBe(400);
   });
 
   test('PATCH /:id returns 404 when company not found', async () => {
     mockStore.updateCompany.mockResolvedValue(null);
-    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore));
+    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore, mockQbClient));
     const res = await request(app).patch('/companies/999').send({ enabled: false });
     expect(res.status).toBe(404);
   });
 
   test('DELETE /:id removes company', async () => {
     mockStore.deleteToken.mockResolvedValue(true);
-    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore));
+    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore, mockQbClient));
     const res = await request(app).delete('/companies/1');
     expect(res.status).toBe(200);
     expect(res.body.message).toBe('Deleted!');
   });
 
   test('DELETE /:id returns 400 for non-numeric id', async () => {
-    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore));
+    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore, mockQbClient));
     const res = await request(app).delete('/companies/abc');
     expect(res.status).toBe(400);
   });
 
   test('DELETE /:id returns 404 when company not found', async () => {
     mockStore.deleteToken.mockResolvedValue(false);
-    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore));
+    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore, mockQbClient));
     const res = await request(app).delete('/companies/999');
     expect(res.status).toBe(404);
   });
 
   test('returns 403 when user lacks admin role', async () => {
     mockStore.getAllTokens.mockResolvedValue([makeToken(1)]);
-    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore), { roles: [] });
+    const app = createTestApp('/companies', (kc) => createCompaniesRouter(kc, mockStore, mockQbClient), { roles: [] });
     const res = await request(app).get('/companies');
     expect(res.status).toBe(403);
   });

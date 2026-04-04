@@ -1,4 +1,4 @@
-import { exchangeCode, getAuthorizationUrl, refreshAccessToken } from '../../quickbooks/oauthClient';
+import { exchangeCode, getAuthorizationUrl, refreshAccessToken, revokeToken } from '../../quickbooks/oauthClient';
 
 jest.mock('../../common/config', () => ({
   config: {
@@ -11,17 +11,20 @@ jest.mock('../../common/config', () => ({
 
 const mockAuthorizeUri = jest.fn();
 const mockCreateToken = jest.fn();
-const mockSetToken = jest.fn();
-const mockRefresh = jest.fn();
+const mockRefreshUsingToken = jest.fn();
+const mockRevoke = jest.fn();
 
-jest.mock('intuit-oauth', () =>
-  jest.fn().mockImplementation(() => ({
+jest.mock('intuit-oauth', () => {
+  const ctor = jest.fn().mockImplementation(() => ({
     authorizeUri: mockAuthorizeUri,
     createToken: mockCreateToken,
-    setToken: mockSetToken,
-    refresh: mockRefresh,
-  })),
-);
+    refreshUsingToken: mockRefreshUsingToken,
+    revoke: mockRevoke,
+  }));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (ctor as any).scopes = { Accounting: 'com.intuit.quickbooks.accounting' };
+  return ctor;
+});
 
 function makeAuthResponse(overrides: {
   access_token?: string;
@@ -57,14 +60,13 @@ describe('getAuthorizationUrl', () => {
 describe('exchangeCode', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  test('extracts realmId from callback URL', async () => {
-    mockCreateToken.mockResolvedValue(makeAuthResponse({ realmId: 'from-token' }));
+  test('returns realmId from the token response', async () => {
+    mockCreateToken.mockResolvedValue(makeAuthResponse({ realmId: 'realm-from-token' }));
 
     const callbackUrl = 'http://localhost/callback?code=auth_code&realmId=realm-from-url&state=qb-connect';
     const result = await exchangeCode(callbackUrl);
 
-    // realmId from URL searchParams takes priority (passed as second arg to parseTokenData)
-    expect(result.realmId).toBe('realm-from-url');
+    expect(result.realmId).toBe('realm-from-token');
   });
 
   test('calculates expiry dates from expires_in fields', async () => {
@@ -97,13 +99,30 @@ describe('exchangeCode', () => {
 describe('refreshAccessToken', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  test('sets the refresh token and calls refresh()', async () => {
-    mockRefresh.mockResolvedValue(makeAuthResponse({ access_token: 'fresh-at' }));
+  test('calls refreshUsingToken and returns parsed token data', async () => {
+    mockRefreshUsingToken.mockResolvedValue(makeAuthResponse({ access_token: 'fresh-at' }));
 
     const result = await refreshAccessToken('old-refresh-token');
 
-    expect(mockSetToken).toHaveBeenCalledWith({ refresh_token: 'old-refresh-token' });
-    expect(mockRefresh).toHaveBeenCalled();
+    expect(mockRefreshUsingToken).toHaveBeenCalledWith('old-refresh-token');
     expect(result.accessToken).toBe('fresh-at');
+  });
+});
+
+describe('revokeToken', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  test('calls revoke with the refresh token', async () => {
+    mockRevoke.mockResolvedValue(undefined);
+
+    await revokeToken('my-refresh-token');
+
+    expect(mockRevoke).toHaveBeenCalledWith({ token: 'my-refresh-token' });
+  });
+
+  test('throws when Intuit revocation fails', async () => {
+    mockRevoke.mockRejectedValue(new Error('revocation failed'));
+
+    await expect(revokeToken('my-refresh-token')).rejects.toThrow('revocation failed');
   });
 });

@@ -61,6 +61,11 @@ export class TokenManager {
     return token.accessToken;
   }
 
+  removeCompany(companyId: string): void {
+    const key = `${QbProvider}:${companyId}`;
+    this.refreshLocks.delete(key);
+  }
+
   async getHealth(): Promise<CompanyHealth[]> {
     const tokens = await this.store.getAllTokens(QbProvider);
 

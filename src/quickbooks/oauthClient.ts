@@ -107,3 +107,15 @@ export async function refreshAccessToken(refreshToken: string): Promise<TokenDat
     throw err;
   }
 }
+
+export async function revokeToken(refreshToken: string): Promise<void> {
+  const client = createClient();
+  try {
+    logger.info('oauthClient.revokeToken: revoking token');
+    await (client as any).revoke({ token: refreshToken }); // revoke() exists in JS but is missing from the TS declaration
+    logger.info('oauthClient.revokeToken: token revoked');
+  } catch (err) {
+    logQBError('revokeToken', err);
+    throw err;
+  }
+}
