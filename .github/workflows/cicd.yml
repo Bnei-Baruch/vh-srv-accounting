@@ -36,9 +36,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
@@ -63,7 +63,10 @@ jobs:
           QB_CLIENT_ID: test-qb-client
           QB_CLIENT_SECRET: test-qb-secret
           QB_REDIRECT_URI: http://localhost:8190/v1/quickbooks/auth/callback
-        run: npm test -- --ci 2>&1 | tee test.log
+          QB_TOKEN_ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
+        run: |
+          npm test -- --ci 2>&1 | tee test.log
+          exit ${PIPESTATUS[0]}
 
       - name: Upload test log on failure
         if: ${{ failure() }}

@@ -1,6 +1,6 @@
 # vh-srv-accounting
 
-Node.js 22 / TypeScript service for accounting integrations. Currently: QuickBooks Online.
+Node.js 24 / TypeScript service for accounting integrations. Currently: QuickBooks Online.
 Future: Priority ERP and other providers will be added as `/v1/priority`, `/v1/...`.
 
 ## Project Structure
