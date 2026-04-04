@@ -1,11 +1,12 @@
 import { Router, RequestHandler, Request, Response, NextFunction } from 'express';
 import KeycloakConnect from 'keycloak-connect';
-import { getAuthorizationUrl, exchangeCode } from '../../quickbooks/oauthClient';
+import { getAuthorizationUrl, exchangeCode, revokeToken } from '../../quickbooks/oauthClient';
 import { TokenStore } from '../../quickbooks/tokenStore';
 import { TokenManager } from '../../quickbooks/tokenManager';
 import { QbProvider, AdminRoles } from '../../common/consts';
 import { logFor } from '../../common/logger';
 import { hasAnyRole } from '../permissions';
+import { NotFoundError } from '../../common/errors';
 
 export function createAuthRouter(keycloak: KeycloakConnect.Keycloak, tokenStore: TokenStore, tokenManager: TokenManager): Router {
   const router = Router();
@@ -48,6 +49,29 @@ export function createAuthRouter(keycloak: KeycloakConnect.Keycloak, tokenStore:
     } catch (err) {
       logFor(req).error({ err }, 'QuickBooks OAuth callback failed');
       res.status(500).json({ error: 'OAuth callback failed', success: false });
+    }
+  });
+
+  // Admin-only: revoke Intuit tokens and remove company connection
+  router.delete('/disconnect/:companyId', keycloak.protect() as RequestHandler, requireAdmin, async (req, res, next) => {
+    try {
+      const { companyId } = req.params;
+      const token = await tokenStore.getToken(QbProvider, companyId);
+      if (!token) throw new NotFoundError(`Company ${companyId} not connected`);
+
+      try {
+        await revokeToken(token.refreshToken);
+      } catch (err) {
+        logFor(req).warn({ err, companyId }, 'authRouter.disconnect: Intuit revocation failed, proceeding with local cleanup');
+      }
+
+      await tokenStore.deleteToken(token.id);
+      tokenManager.removeCompany(companyId);
+
+      logFor(req).info({ companyId }, 'QuickBooks company disconnected');
+      res.json({ message: 'Disconnected!', success: true });
+    } catch (err) {
+      next(err);
     }
   });
 

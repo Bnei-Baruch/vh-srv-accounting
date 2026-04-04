@@ -88,10 +88,109 @@ describe('GET /auth/callback', () => {
     (oauthClient.exchangeCode as jest.Mock).mockRejectedValue(new Error('Intuit API error'));
 
     const app = createTestApp('/auth', (kc) => createAuthRouter(kc, mockStore, {} as jest.Mocked<TokenManager>));
-    const res = await request(app).get('/auth/callback?code=abc');
+    const res = await request(app).get('/auth/callback?code=abc&realmId=123');
 
     expect(res.status).toBe(500);
     expect(res.body.success).toBe(false);
+  });
+});
+
+describe('DELETE /auth/disconnect/:companyId', () => {
+  let mockStore: jest.Mocked<TokenStore>;
+  let mockManager: jest.Mocked<TokenManager>;
+
+  const storedToken: OAuthToken = {
+    id: 7,
+    provider: 'quickbooks',
+    companyId: 'realm-abc',
+    companyName: 'Acme',
+    enabled: true,
+    accessToken: 'at',
+    refreshToken: 'rt',
+    tokenType: 'Bearer',
+    expiresAt: new Date(Date.now() + 3600 * 1000),
+    refreshTokenExpiresAt: new Date(Date.now() + 180 * 24 * 3600 * 1000),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockStore = {
+      getToken: jest.fn(),
+      getAllTokens: jest.fn(),
+      upsertToken: jest.fn(),
+      updateTokens: jest.fn(),
+      updateCompany: jest.fn(),
+      deleteToken: jest.fn(),
+    } as unknown as jest.Mocked<TokenStore>;
+    mockManager = {
+      removeCompany: jest.fn(),
+    } as unknown as jest.Mocked<TokenManager>;
+  });
+
+  test('revokes token, deletes from DB, and returns 200', async () => {
+    mockStore.getToken.mockResolvedValue(storedToken);
+    (oauthClient.revokeToken as jest.Mock).mockResolvedValue(undefined);
+    mockStore.deleteToken.mockResolvedValue(true);
+
+    const app = createTestApp('/auth', (kc) => createAuthRouter(kc, mockStore, mockManager));
+    const res = await request(app).delete('/auth/disconnect/realm-abc');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ message: 'Disconnected!', success: true });
+    expect(oauthClient.revokeToken).toHaveBeenCalledWith('rt');
+    expect(mockStore.deleteToken).toHaveBeenCalledWith(7);
+    expect(mockManager.removeCompany).toHaveBeenCalledWith('realm-abc');
+  });
+
+  test('returns 404 when company is not connected', async () => {
+    mockStore.getToken.mockResolvedValue(null);
+
+    const app = createTestApp('/auth', (kc) => createAuthRouter(kc, mockStore, mockManager));
+    const res = await request(app).delete('/auth/disconnect/realm-abc');
+
+    expect(res.status).toBe(404);
+    expect(oauthClient.revokeToken).not.toHaveBeenCalled();
+    expect(mockStore.deleteToken).not.toHaveBeenCalled();
+  });
+
+  test('still disconnects locally when Intuit revocation fails', async () => {
+    mockStore.getToken.mockResolvedValue(storedToken);
+    (oauthClient.revokeToken as jest.Mock).mockRejectedValue(new Error('Intuit unavailable'));
+    mockStore.deleteToken.mockResolvedValue(true);
+
+    const app = createTestApp('/auth', (kc) => createAuthRouter(kc, mockStore, mockManager));
+    const res = await request(app).delete('/auth/disconnect/realm-abc');
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(mockStore.deleteToken).toHaveBeenCalledWith(7);
+    expect(mockManager.removeCompany).toHaveBeenCalledWith('realm-abc');
+  });
+
+  test('returns 500 when DB delete fails', async () => {
+    mockStore.getToken.mockResolvedValue(storedToken);
+    (oauthClient.revokeToken as jest.Mock).mockResolvedValue(undefined);
+    mockStore.deleteToken.mockRejectedValue(new Error('DB error'));
+
+    const app = createTestApp('/auth', (kc) => createAuthRouter(kc, mockStore, mockManager));
+    const res = await request(app).delete('/auth/disconnect/realm-abc');
+
+    expect(res.status).toBe(500);
+    expect(mockManager.removeCompany).not.toHaveBeenCalled();
+  });
+
+  test('returns 403 when user lacks admin role', async () => {
+    const app = createTestApp(
+      '/auth',
+      (kc) => createAuthRouter(kc, mockStore, mockManager),
+      { roles: [] },
+    );
+    const res = await request(app).delete('/auth/disconnect/realm-abc');
+
+    expect(res.status).toBe(403);
+    expect(mockStore.getToken).not.toHaveBeenCalled();
   });
 });
 
