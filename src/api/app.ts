@@ -38,7 +38,7 @@ export async function createApp(): Promise<App> {
   const keycloak = createKeycloak();
 
   // 4. QuickBooks layer
-  const tokenStore = new TokenStore(pool);
+  const tokenStore = new TokenStore(pool, config.qbTokenEncryptionKey);
   const tokenManager = new TokenManager(tokenStore);
   const qbClient = new QbApiClient(tokenManager);
 

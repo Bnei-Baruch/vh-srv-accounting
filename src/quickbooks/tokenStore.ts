@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import { encrypt, decrypt } from './tokenCrypto';
 
 export interface OAuthToken {
   id: number;
@@ -33,14 +34,33 @@ function rowToToken(row: Record<string, unknown>): OAuthToken {
 }
 
 export class TokenStore {
-  constructor(private readonly db: Pool) {}
+  constructor(
+    private readonly db: Pool,
+    private readonly encryptionKey: string,
+  ) {}
+
+  private enc(value: string): string {
+    return encrypt(value, this.encryptionKey);
+  }
+
+  private dec(value: string): string {
+    return decrypt(value, this.encryptionKey);
+  }
+
+  private decryptRow(row: Record<string, unknown>): Record<string, unknown> {
+    return {
+      ...row,
+      access_token: this.dec(row.access_token as string),
+      refresh_token: this.dec(row.refresh_token as string),
+    };
+  }
 
   async getToken(provider: string, companyId: string): Promise<OAuthToken | null> {
     const result = await this.db.query(
       `SELECT * FROM oauth_tokens WHERE provider = $1 AND company_id = $2`,
       [provider, companyId],
     );
-    return result.rows.length > 0 ? rowToToken(result.rows[0]) : null;
+    return result.rows.length > 0 ? rowToToken(this.decryptRow(result.rows[0])) : null;
   }
 
   async getAllTokens(provider: string): Promise<OAuthToken[]> {
@@ -48,7 +68,7 @@ export class TokenStore {
       `SELECT * FROM oauth_tokens WHERE provider = $1 ORDER BY created_at ASC`,
       [provider],
     );
-    return result.rows.map(rowToToken);
+    return result.rows.map((row) => rowToToken(this.decryptRow(row)));
   }
 
   async upsertToken(
@@ -74,9 +94,9 @@ export class TokenStore {
          refresh_token_expires_at = $8,
          updated_at               = NOW()
        RETURNING *`,
-      [provider, companyId, companyName, accessToken, refreshToken, tokenType, expiresAt, refreshTokenExpiresAt],
+      [provider, companyId, companyName, this.enc(accessToken), this.enc(refreshToken), tokenType, expiresAt, refreshTokenExpiresAt],
     );
-    return rowToToken(result.rows[0]);
+    return rowToToken(this.decryptRow(result.rows[0]));
   }
 
   async updateTokens(
@@ -92,7 +112,7 @@ export class TokenStore {
        SET access_token = $3, refresh_token = $4, expires_at = $5,
            refresh_token_expires_at = $6, updated_at = NOW()
        WHERE provider = $1 AND company_id = $2`,
-      [provider, companyId, accessToken, refreshToken, expiresAt, refreshTokenExpiresAt],
+      [provider, companyId, this.enc(accessToken), this.enc(refreshToken), expiresAt, refreshTokenExpiresAt],
     );
   }
 
