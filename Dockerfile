@@ -25,6 +25,7 @@ COPY --from=builder /app/dist ./dist
 # Copy SQL migrations into dist so they're available at runtime
 COPY src/db/migrations ./dist/db/migrations
 
+ARG GIT_SHA=local
 ENV GIT_SHA=${GIT_SHA}
 
 EXPOSE 8190
