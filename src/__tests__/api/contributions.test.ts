@@ -53,25 +53,44 @@ describe('GET /v1/quickbooks/contributions', () => {
   test('aggregates across enabled companies', async () => {
     mockStore.getAllTokens.mockResolvedValue([makeToken('111'), makeToken('222')]);
     (contributions.getLastContributions as jest.Mock)
-      .mockResolvedValueOnce({ USD: 100 })
-      .mockResolvedValueOnce({ USD: 200, ILS: 500 });
-    (contributions.mergeContributions as jest.Mock).mockReturnValue({ USD: 300, ILS: 500 });
+      .mockResolvedValueOnce({ found: true, contributions: { USD: 100 } })
+      .mockResolvedValueOnce({ found: false, contributions: {} });
+    (contributions.mergeContributions as jest.Mock).mockReturnValue({ USD: 100 });
 
     const res = await request(buildApp(mockStore)).get('/v1/quickbooks/contributions?email=user@test.com');
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.data).toEqual({ USD: 300, ILS: 500 });
+    expect(res.body.data).toEqual({
+      found: true,
+      total: { USD: 100 },
+      companies: [
+        { companyId: '111', companyName: 'Test Corp', found: true, contributions: { USD: 100 } },
+        { companyId: '222', companyName: 'Test Corp', found: false, contributions: {} },
+      ],
+    });
+  });
+
+  test('returns found: false and empty companies when no companies enabled', async () => {
+    mockStore.getAllTokens.mockResolvedValue([]);
+
+    const res = await request(buildApp(mockStore)).get('/v1/quickbooks/contributions?email=user@test.com');
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ found: false, total: {}, companies: [] });
   });
 
   test('filters by company_id when provided', async () => {
     mockStore.getToken.mockResolvedValue(makeToken('111'));
-    (contributions.getLastContributions as jest.Mock).mockResolvedValue({ USD: 500 });
+    (contributions.getLastContributions as jest.Mock).mockResolvedValue({ found: true, contributions: { USD: 500 } });
 
     const res = await request(buildApp(mockStore)).get(
       '/v1/quickbooks/contributions?email=user@test.com&company_id=111',
     );
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ USD: 500 });
+    expect(res.body.data).toEqual({
+      found: true,
+      total: { USD: 500 },
+      companies: [{ companyId: '111', companyName: 'Test Corp', found: true, contributions: { USD: 500 } }],
+    });
   });
 
   test('returns 404 for unknown company_id', async () => {

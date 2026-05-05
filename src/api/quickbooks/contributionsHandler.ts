@@ -2,12 +2,25 @@ import { Router, RequestHandler } from 'express';
 import KeycloakConnect from 'keycloak-connect';
 import { isEmailOwnerOrHasAnyRole } from '../permissions';
 import { AdminRoles } from '../../common/consts';
-import { getLastContributions, mergeContributions } from '../../quickbooks/contributions';
+import { getLastContributions, mergeContributions, ContributionsMap } from '../../quickbooks/contributions';
 import { TokenStore } from '../../quickbooks/tokenStore';
 import { QbProvider } from '../../common/consts';
 import { QbApiClient } from '../../quickbooks/apiClient';
 import { ValidationError } from '../../common/errors';
 import { logFor } from '../../common/logger';
+
+interface CompanyContributions {
+  companyId: string;
+  companyName: string | null;
+  found: boolean;
+  contributions: ContributionsMap;
+}
+
+interface ContributionsResponse {
+  found: boolean;
+  total: ContributionsMap;
+  companies: CompanyContributions[];
+}
 
 export function createContributionsRouter(
   keycloak: KeycloakConnect.Keycloak,
@@ -29,38 +42,49 @@ export function createContributionsRouter(
         if (!isEmailOwnerOrHasAnyRole(req, res, email, ...AdminRoles)) return;
 
         if (companyId) {
-          // Single company
           const token = await tokenStore.getToken(QbProvider, companyId);
           if (!token) {
             res.status(404).json({ error: `Company ${companyId} not connected`, success: false });
             return;
           }
 
-          const data = await getLastContributions(qbClient, companyId, email);
+          const result = await getLastContributions(qbClient, companyId, email);
+          const data: ContributionsResponse = {
+            found: result.found,
+            total: result.contributions,
+            companies: [{ companyId: token.companyId, companyName: token.companyName, found: result.found, contributions: result.contributions }],
+          };
           res.json({ message: 'Fetched!', data, success: true });
         } else {
-          // Aggregate across all enabled companies
           const tokens = await tokenStore.getAllTokens(QbProvider);
           const enabled = tokens.filter((t) => t.enabled);
 
           if (enabled.length === 0) {
-            res.json({ message: 'Fetched!', data: {}, success: true });
+            const data: ContributionsResponse = { found: false, total: {}, companies: [] };
+            res.json({ message: 'Fetched!', data, success: true });
             return;
           }
 
-          const results = await Promise.allSettled(
-            enabled.map((t) => getLastContributions(qbClient, t.companyId, email)),
+          const settled = await Promise.allSettled(
+            enabled.map(async (t) => {
+              const result = await getLastContributions(qbClient, t.companyId, email);
+              return { companyId: t.companyId, companyName: t.companyName, ...result };
+            }),
           );
 
-          const maps = results
-            .filter((r): r is PromiseFulfilledResult<Record<string, number>> => r.status === 'fulfilled')
-            .map((r) => r.value);
-
-          results
+          settled
             .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
             .forEach((r) => logFor(req).warn({ err: r.reason }, 'contributions: partial failure'));
 
-          const data = mergeContributions(maps);
+          const companies = settled
+            .filter((r): r is PromiseFulfilledResult<CompanyContributions> => r.status === 'fulfilled')
+            .map((r) => r.value);
+
+          const data: ContributionsResponse = {
+            found: companies.some((c) => c.found),
+            total: mergeContributions(companies.map((c) => c.contributions)),
+            companies,
+          };
           res.json({ message: 'Fetched!', data, success: true });
         }
       } catch (err) {

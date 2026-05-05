@@ -2,6 +2,11 @@ import { QbApiClient } from './apiClient';
 
 export type ContributionsMap = Record<string, number>;
 
+export interface ContributionsResult {
+  found: boolean;
+  contributions: ContributionsMap;
+}
+
 interface QbCustomer {
   Id: string;
 }
@@ -23,13 +28,13 @@ export async function getLastContributions(
   client: QbApiClient,
   companyId: string,
   email: string,
-): Promise<ContributionsMap> {
+): Promise<ContributionsResult> {
   const customers = await client.query<QbCustomer>(
     companyId,
     `SELECT * FROM Customer WHERE PrimaryEmailAddr = '${email}' AND Active = true`,
   );
 
-  if (customers.length === 0) return {};
+  if (customers.length === 0) return { found: false, contributions: {} };
 
   const cutoff = new Date();
   cutoff.setFullYear(cutoff.getFullYear() - 1);
@@ -38,7 +43,7 @@ export async function getLastContributions(
   const maps = await Promise.all(
     customers.map((c) => fetchDonationsByCustomer(client, companyId, c.Id, cutoffDate)),
   );
-  return mergeContributions(maps);
+  return { found: true, contributions: mergeContributions(maps) };
 }
 
 async function fetchDonationsByCustomer(
