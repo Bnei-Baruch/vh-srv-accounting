@@ -27,10 +27,10 @@ describe('getLastContributions', () => {
     mockClient = { query: mockQuery } as unknown as QbApiClient;
   });
 
-  test('returns {} when no QB customer found for email', async () => {
+  test('returns found: false when no QB customer found for email', async () => {
     mockQuery.mockResolvedValueOnce([]);
     const result = await getLastContributions(mockClient, 'company1', 'nobody@example.com');
-    expect(result).toEqual({});
+    expect(result).toEqual({ found: false, contributions: {} });
     expect(mockQuery).toHaveBeenCalledTimes(1);
     expect(mockQuery).toHaveBeenCalledWith('company1', expect.stringContaining("PrimaryEmailAddr = 'nobody@example.com'"));
   });
@@ -41,18 +41,18 @@ describe('getLastContributions', () => {
     expect(mockQuery).toHaveBeenCalledWith('company1', expect.stringContaining('Active = true'));
   });
 
-  test('returns {} when customer has no receipts', async () => {
+  test('returns found: true with empty contributions when customer has no receipts', async () => {
     mockQuery.mockResolvedValueOnce([{ Id: '123' }]).mockResolvedValueOnce([]);
     const result = await getLastContributions(mockClient, 'company1', 'user@example.com');
-    expect(result).toEqual({});
+    expect(result).toEqual({ found: true, contributions: {} });
   });
 
-  test('returns {} when receipts contain no donation lines', async () => {
+  test('returns found: true with empty contributions when receipts have no donation lines', async () => {
     mockQuery
       .mockResolvedValueOnce([{ Id: '123' }])
       .mockResolvedValueOnce([makeReceipt('USD', [makeLine(REVENUE_ACCOUNT, 399)])]);
     const result = await getLastContributions(mockClient, 'company1', 'user@example.com');
-    expect(result).toEqual({});
+    expect(result).toEqual({ found: true, contributions: {} });
   });
 
   test('sums donation lines, ignoring non-SalesItemLineDetail lines', async () => {
@@ -66,7 +66,7 @@ describe('getLastContributions', () => {
         ],
       }]);
     const result = await getLastContributions(mockClient, 'company1', 'user@example.com');
-    expect(result).toEqual({ USD: 100 });
+    expect(result).toEqual({ found: true, contributions: { USD: 100 } });
   });
 
   test('filters non-donation lines in a mixed receipt', async () => {
@@ -79,7 +79,7 @@ describe('getLastContributions', () => {
         makeLine('41001 KabU Revenue:KabU Store', 60),
       ])]);
     const result = await getLastContributions(mockClient, 'company1', 'user@example.com');
-    expect(result).toEqual({ USD: 99 });
+    expect(result).toEqual({ found: true, contributions: { USD: 99 } });
   });
 
   test('sums donation lines across multiple receipts', async () => {
@@ -90,7 +90,7 @@ describe('getLastContributions', () => {
         makeReceipt('USD', [makeLine(KABU_DONATIONS, 200)]),
       ]);
     const result = await getLastContributions(mockClient, 'company1', 'user@example.com');
-    expect(result).toEqual({ USD: 300 });
+    expect(result).toEqual({ found: true, contributions: { USD: 300 } });
   });
 
   test('groups by currency across receipts', async () => {
@@ -101,7 +101,7 @@ describe('getLastContributions', () => {
         makeReceipt('ILS', [makeLine(DONATION_ACCOUNT, 500)]),
       ]);
     const result = await getLastContributions(mockClient, 'company1', 'user@example.com');
-    expect(result).toEqual({ USD: 100, ILS: 500 });
+    expect(result).toEqual({ found: true, contributions: { USD: 100, ILS: 500 } });
   });
 
   test('aggregates across multiple customers sharing the same email', async () => {
@@ -110,8 +110,7 @@ describe('getLastContributions', () => {
       .mockResolvedValueOnce([makeReceipt('USD', [makeLine(DONATION_ACCOUNT, 100)])])
       .mockResolvedValueOnce([makeReceipt('USD', [makeLine(DONATION_ACCOUNT, 200)])]);
     const result = await getLastContributions(mockClient, 'company1', 'shared@example.com');
-    expect(result).toEqual({ USD: 300 });
-    // Both customer receipt queries should have been issued
+    expect(result).toEqual({ found: true, contributions: { USD: 300 } });
     expect(mockQuery).toHaveBeenCalledWith('company1', expect.stringContaining("CustomerRef = '111'"));
     expect(mockQuery).toHaveBeenCalledWith('company1', expect.stringContaining("CustomerRef = '222'"));
   });
@@ -128,8 +127,7 @@ describe('getLastContributions', () => {
       .mockResolvedValueOnce(page2);
 
     const result = await getLastContributions(mockClient, 'company1', 'user@example.com');
-    expect(result).toEqual({ USD: 1050 });
-    // 3 calls: 1 customer + 2 receipt pages
+    expect(result).toEqual({ found: true, contributions: { USD: 1050 } });
     expect(mockQuery).toHaveBeenCalledTimes(3);
     expect(mockQuery).toHaveBeenCalledWith('company1', expect.stringContaining('STARTPOSITION 1'));
     expect(mockQuery).toHaveBeenCalledWith('company1', expect.stringContaining('STARTPOSITION 1001'));
