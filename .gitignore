@@ -11,3 +11,4 @@ coverage/
 
 # Claude Code local settings (project instructions CLAUDE.md are tracked)
 .claude/
+jwt.txt
