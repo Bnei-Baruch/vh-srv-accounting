@@ -65,7 +65,7 @@ jobs:
           QB_REDIRECT_URI: http://localhost:8190/v1/quickbooks/auth/callback
           QB_TOKEN_ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
         run: |
-          npm test -- --ci 2>&1 | tee test.log
+          npm run test:coverage -- --ci 2>&1 | tee test.log
           exit ${PIPESTATUS[0]}
 
       - name: Upload test log on failure
