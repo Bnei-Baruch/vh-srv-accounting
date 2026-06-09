@@ -55,6 +55,8 @@ jobs:
           QB_CLIENT_SECRET: test-qb-secret
           QB_REDIRECT_URI: http://localhost:8190/v1/quickbooks/auth/callback
           QB_TOKEN_ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
+          EUROPE_API_BASE_URL: https://europe.test
+          EUROPE_API_TOKEN: test-europe-token
         run: |
           npm run test:coverage -- --ci 2>&1 | tee test.log
           exit ${PIPESTATUS[0]}

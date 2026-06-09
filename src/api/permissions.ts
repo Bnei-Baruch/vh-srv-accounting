@@ -55,6 +55,30 @@ export function isEmailOwnerOrHasAnyRole(
   return true;
 }
 
+export function isSubOwnerOrHasAnyRole(
+  req: Request,
+  res: Response,
+  sub: string,
+  ...roles: string[]
+): boolean {
+  const content = getTokenContent(req);
+  if (!content) {
+    res.status(403).end();
+    return false;
+  }
+
+  const realmRoles = content.realm_access?.roles ?? [];
+  const isOwner = content.sub === sub;
+  const isAdmin = roles.some((r) => realmRoles.includes(r));
+
+  if (!isOwner && !isAdmin) {
+    res.status(403).end();
+    return false;
+  }
+
+  return true;
+}
+
 export function getTokenEmail(req: Request): string | undefined {
   return (getTokenContent(req) as TokenContent | null)?.email;
 }

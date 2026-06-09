@@ -1,6 +1,7 @@
 # vh-srv-accounting
 
-Node.js 24 / TypeScript service for accounting integrations. Currently: QuickBooks Online.
+Node.js 24 / TypeScript service for accounting integrations. Currently: QuickBooks Online,
+and the European department's Customer Payment Totals API (`/v1/europe`).
 Future: Priority ERP and other providers will be added as `/v1/priority`, `/v1/...`.
 
 ## Project Structure
@@ -10,7 +11,8 @@ src/
   index.ts               Entry: load config → createApp() → start
   common/
     config.ts            Typed config from env vars (dotenv). Fatal if required vars missing.
-    consts.ts            Roles (vh_root, vh_admin), QbProvider, ServiceName
+    consts.ts            Roles (vh_root, vh_admin), QbProvider, EuropeProvider, ServiceName
+    contributions.ts     Shared ContributionsMap/ContributionsResult + mergeContributions (provider-agnostic)
     errors.ts            Custom error classes (NotFoundError, ValidationError)
     logger.ts            pino structured logger. Use logFor(req) in request handlers.
   db/
@@ -31,6 +33,13 @@ src/
       authRouter.ts      GET /auth/connect (admin), GET /auth/callback (public), GET /auth/status (admin) — QB token health per company
       companiesHandler.ts CRUD /companies (admin only)
       contributionsHandler.ts GET /contributions?email=x (email owner or admin)
+    europe/
+      router.ts          Mounts contributions under /v1/europe
+      contributionsHandler.ts GET /contributions?email|keycloak_id (owner or admin); POST /contributions/batch (admin only)
+  europe/
+    types.ts             Wire types for the Customer Payment Totals API (snake_case)
+    paymentTotalsClient.ts EuropeApiClient — stateless POST client, static Token auth, fail-fast validation
+    contributions.ts     getLastContributions()/mapResult() — maps upstream totals to ContributionsMap
   quickbooks/
     oauthClient.ts       Thin wrapper around intuit-oauth library
     tokenStore.ts        Raw SQL CRUD on oauth_tokens table (no ORM)
@@ -97,6 +106,25 @@ When the QB entity mapping is determined:
 2. Fetch their transactions for the last 12 months
 3. Sum amounts by currency (ISO code)
 4. Return `Record<string, number>` — matches Priority's `GetLastContributions` contract
+
+## Europe Contributions
+
+Consumes the European department's **Customer Payment Totals API** (`POST <base>/billing/api/customer/payment-totals/`).
+Stateless: a single static application-secret token (`Authorization: Token <secret>`), no OAuth, no DB, no per-company concept.
+
+- `EuropeApiClient.getPaymentTotals()` translates our camelCase request to the snake_case wire body, enforces the
+  upstream rules client-side (1–100 identifiers, `lookback_months` 1–1200), and maps responses: upstream `400` →
+  `ValidationError` (caller error); `401`/`403` mean **our** token is bad → generic 500 (never reflected to the caller).
+- `found` = upstream `customer_id !== null` (recognised person), independent of whether they have payments.
+- Amounts: upstream sends string-decimals; we expose `number` (matches the shared `ContributionsMap`).
+
+Endpoints (`/v1/europe`):
+- `GET /contributions?email=…` **or** `?keycloak_id=…` (exactly one; optional `lookback_months`) — owner-or-admin.
+  Response mirrors the QB envelope: `{ found, total, sources: [{ source: "europe", found, contributions }] }`.
+- `POST /contributions/batch` `{ emails?, keycloak_ids?, lookback_months? }` — **admin only**; maps onto the
+  upstream's native batch and returns one entry per identifier.
+
+Config: `EUROPE_API_BASE_URL` (base only, no path) and `EUROPE_API_TOKEN` (store securely, never commit).
 
 ## Build and Run
 
