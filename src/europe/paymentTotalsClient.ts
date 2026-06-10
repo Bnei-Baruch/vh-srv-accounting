@@ -63,6 +63,12 @@ export class EuropeApiClient {
           'Content-Type': 'application/json',
         },
         body,
+        // Never silently follow a redirect. Per the Fetch Standard (HTTP-redirect fetch),
+        // a 301/302 on a POST — and any 303 — rewrites the method to GET and drops the body,
+        // which this upstream then rejects with a confusing 405. The base URL must point at
+        // the canonical (locale-prefixed) path so no redirect occurs; if one ever does,
+        // fail loudly here instead of corrupting the method.
+        redirect: 'error',
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
     } catch (err) {

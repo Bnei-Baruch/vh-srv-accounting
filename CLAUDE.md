@@ -124,7 +124,9 @@ Endpoints (`/v1/europe`):
 - `POST /contributions/batch` `{ emails?, keycloak_ids?, lookback_months? }` — **admin only**; maps onto the
   upstream's native batch and returns one entry per identifier.
 
-Config: `EUROPE_API_BASE_URL` (base only, no path) and `EUROPE_API_TOKEN` (store securely, never commit).
+Config: `EUROPE_API_BASE_URL` (host **+ locale prefix**, e.g. `https://kabbalah.academy/en`; the bare host
+302-redirects and `fetch` would downgrade the redirected POST to GET → 405, so the client sets `redirect: 'error'`)
+and `EUROPE_API_TOKEN` (store securely, never commit).
 
 ## Build and Run
 

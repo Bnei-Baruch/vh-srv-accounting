@@ -42,6 +42,18 @@ describe('EuropeApiClient.getPaymentTotals', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('https://europe.test/billing/api/customer/payment-totals/');
   });
 
+  test('preserves a locale (or any) path prefix on the base URL', async () => {
+    await new EuropeApiClient('https://kabbalah.academy/en', 'tok').getPaymentTotals({ emails: ['a@b.com'] });
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      'https://kabbalah.academy/en/billing/api/customer/payment-totals/',
+    );
+  });
+
+  test('disables redirect-following so a 302 cannot downgrade the POST to GET', async () => {
+    await client().getPaymentTotals({ emails: ['a@b.com'] });
+    expect(fetchMock.mock.calls[0][1].redirect).toBe('error');
+  });
+
   test('sends the Token auth header and JSON content type', async () => {
     await client().getPaymentTotals({ emails: ['a@b.com'] });
     const init = fetchMock.mock.calls[0][1];
