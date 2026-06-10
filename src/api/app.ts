@@ -15,8 +15,10 @@ import { runMigrations } from '../db/migrate';
 import { TokenStore } from '../quickbooks/tokenStore';
 import { TokenManager } from '../quickbooks/tokenManager';
 import { QbApiClient } from '../quickbooks/apiClient';
+import { EuropeApiClient } from '../europe/paymentTotalsClient';
 import { healthHandler } from './health';
 import { createQuickBooksRouter } from './quickbooks/router';
+import { createEuropeRouter } from './europe/router';
 
 export interface App {
   expressApp: express.Application;
@@ -42,6 +44,9 @@ export async function createApp(): Promise<App> {
   const tokenManager = new TokenManager(tokenStore);
   const qbClient = new QbApiClient(tokenManager);
 
+  // 4b. Europe layer (stateless — static token, no DB/OAuth)
+  const europeClient = new EuropeApiClient(config.europeApiBaseUrl, config.europeApiToken);
+
   // 5. Express app
   const app = express();
 
@@ -65,6 +70,7 @@ export async function createApp(): Promise<App> {
   // 6. Routes
   app.get('/health', healthHandler);
   app.use('/v1/quickbooks', createQuickBooksRouter(keycloak, tokenStore, tokenManager, qbClient));
+  app.use('/v1/europe', createEuropeRouter(keycloak, europeClient));
 
   // 7. Error handling
   app.use(sentryErrorHandler());

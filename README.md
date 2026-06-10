@@ -89,7 +89,10 @@ See `env.dev` for the full list with descriptions. Required vars:
 PGHOST, PGUSER, PGPASSWORD, PGDATABASE
 KEYCLOAK_SERVER_URL, KEYCLOAK_REALM, KEYCLOAK_CLIENT_ID, KEYCLOAK_CLIENT_SECRET
 QB_CLIENT_ID, QB_CLIENT_SECRET, QB_REDIRECT_URI
+EUROPE_API_BASE_URL, EUROPE_API_TOKEN
 ```
+
+`EUROPE_API_BASE_URL` must include the locale prefix (e.g. `https://kabbalah.academy/en`) — the bare host redirects and would break the POST.
 
 Optional: `QB_ENVIRONMENT` (default: `sandbox`), `SENTRY_DSN`, `APP_PORT` (default: `8190`).
 

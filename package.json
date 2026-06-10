@@ -14,7 +14,8 @@
     "test:coverage": "jest --coverage",
     "lint": "eslint 'src/**/*.ts'",
     "migrate": "node-pg-migrate up",
-    "migrate:down": "node-pg-migrate down"
+    "migrate:down": "node-pg-migrate down",
+    "probe:europe": "tsx scripts/probe-europe.ts"
   },
   "dependencies": {
     "@nats-io/nuid": "^2.0.3",

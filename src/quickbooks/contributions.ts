@@ -1,11 +1,8 @@
 import { QbApiClient } from './apiClient';
+import { ContributionsMap, ContributionsResult, mergeContributions } from '../common/contributions';
 
-export type ContributionsMap = Record<string, number>;
-
-export interface ContributionsResult {
-  found: boolean;
-  contributions: ContributionsMap;
-}
+export { mergeContributions };
+export type { ContributionsMap, ContributionsResult };
 
 interface QbCustomer {
   Id: string;
@@ -76,14 +73,4 @@ async function fetchDonationsByCustomer(
   }
 
   return totals;
-}
-
-export function mergeContributions(maps: ContributionsMap[]): ContributionsMap {
-  const result: ContributionsMap = {};
-  for (const map of maps) {
-    for (const [currency, amount] of Object.entries(map)) {
-      result[currency] = (result[currency] ?? 0) + amount;
-    }
-  }
-  return result;
 }

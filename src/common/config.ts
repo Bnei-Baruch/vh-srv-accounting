@@ -33,6 +33,10 @@ export const config = {
   // 64-char hex string (32 bytes) — AES-256 key for encrypting OAuth tokens at rest
   qbTokenEncryptionKey: requireEnv('QB_TOKEN_ENCRYPTION_KEY'),
 
+  // European department Customer Payment Totals API
+  europeApiBaseUrl: requireEnv('EUROPE_API_BASE_URL'),
+  europeApiToken: requireEnv('EUROPE_API_TOKEN'),
+
   sentryDsn: optionalEnv('SENTRY_DSN'),
 } as const;
 

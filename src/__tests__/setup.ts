@@ -43,6 +43,7 @@ export async function runTestMigrations(): Promise<void> {
 
 export interface TestClaims {
   email?: string;
+  sub?: string;
   roles?: string[];
 }
 
@@ -59,6 +60,7 @@ export function createTestApp(
   claims: TestClaims = {},
 ): express.Application {
   const email = claims.email ?? 'user@test.com';
+  const sub = claims.sub ?? 'user-123';
   const roles = claims.roles ?? ['vh_admin'];
 
   const app = express();
@@ -81,7 +83,7 @@ export function createTestApp(
     (req as express.Request & { kauth: unknown }).kauth = {
       grant: {
         access_token: {
-          content: { email, sub: 'user-123', realm_access: { roles } },
+          content: { email, sub, realm_access: { roles } },
         } as unknown as KeycloakConnect.Token,
       } as unknown as KeycloakConnect.Grant,
     };
