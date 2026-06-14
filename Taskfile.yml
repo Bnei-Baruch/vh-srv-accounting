@@ -76,6 +76,11 @@ tasks:
           echo "Created .env from env.dev."
         fi
 
+  dev:migrate:
+    desc: Ensure the service database exists (schema is applied automatically on app startup)
+    cmds:
+      - task: db:ensure
+
   # =============================================================================
   #  SHARED POSTGRESQL BOOTSTRAP (IDEMPOTENT)
   # =============================================================================
