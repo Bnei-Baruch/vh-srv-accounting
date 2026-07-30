@@ -132,32 +132,10 @@ and `EUROPE_API_TOKEN` (store securely, never commit).
 
 Uses [go-task](https://taskfile.dev). Run `task --list` to see all tasks.
 
-```sh
-task dev                  # init .env, ensure DB (shared vh-dev-db), run service
-task dev:standalone       # start standalone Postgres, run service
-task test                 # run jest tests
-task test COVERAGE=true   # with coverage report
-task lint                 # eslint
-task build                # tsc
-task docker:build         # build Docker image
-task db:shell             # psql into dev DB
-task db:drop              # drop service DB
-```
+`task dev` uses the shared `vh-dev-db`; `task dev:standalone` starts its own Postgres.
 
 ## Tech Stack
 
-| Component     | Library                              |
-|---------------|--------------------------------------|
-| HTTP          | express ^4                           |
-| Auth          | @keycloak/keycloak-nodejs-connect    |
-| Database      | pg (raw SQL, no ORM)                 |
-| Migrations    | node-pg-migrate (SQL files)          |
-| QB OAuth      | intuit-oauth (official Intuit SDK)   |
-| Logging       | pino + pino-http                     |
-| Error tracking| @sentry/node                         |
-| Config        | dotenv + typed config object         |
-| Testing       | jest + ts-jest + supertest           |
-| Dev runner    | tsx                                  |
-| Build         | tsc                                  |
+See `package.json` for the dependency list.
 
-No ORMs. No gRPC. No NestJS. No dependency injection framework.
+Constraints that aren't visible there: **No ORMs. No gRPC. No NestJS. No dependency injection framework.** Raw SQL via `pg`, dependencies wired manually in `api/app.ts`.
