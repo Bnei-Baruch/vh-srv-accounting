@@ -1,14 +1,4 @@
 services:
-  accountingdb:
-    image: postgres:12
-    container_name: accountingdb
-    restart: unless-stopped
-    profiles:
-      - staging
-    environment:
-      POSTGRES_USER: ${PGUSER:-user}
-      POSTGRES_PASSWORD: ${PGPASSWORD:-password}
-      POSTGRES_DB: ${PGDATABASE:-accounting}
   vh-srv-accounting:
     image: "${IMAGE_NAME}"
     container_name: 'vh-srv-accounting'
@@ -17,8 +7,14 @@ services:
     cpus: '0.5'
     mem_limit: 250M
     ports:
-      - "8190:8190"
+      # Bound to loopback: host nginx is the only thing that talks to this, and
+      # firewalld is disabled on the Rocky 9 hosts, so a 0.0.0.0 mapping would
+      # publish the service straight onto the VM's public IP, bypassing the
+      # edge LB and nginx entirely.
+      - "127.0.0.1:8190:8190"
 networks:
+  # Short form. The long form (networks.default.external.name) was removed from
+  # Compose and fails outright on the Rocky 9 hosts, which ship Compose 5.3.
   default:
-    external:
-      name: vh
+    name: vh
+    external: true

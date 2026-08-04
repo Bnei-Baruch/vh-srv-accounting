@@ -10,7 +10,9 @@ on:
         type: choice
         options:
           - staging
+          - staging-new
           - production
+          - production-new
 
 permissions:
   contents: read
@@ -21,7 +23,9 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:12
+        # Matches the on-prem vh-db (PG 18) so version differences surface in CI
+        # rather than during the cutover window.
+        image: postgres:18
         env:
           POSTGRES_DB: accounting_test
           POSTGRES_USER: user
@@ -115,11 +119,16 @@ jobs:
 
       - name: Set environment variables
         run: |
-          if [[ "${{ inputs.environment }}" == "production" ]]; then
-            echo "SSH_HOST=${{ secrets.VH_HOST_PRODUCTION }}" >> $GITHUB_ENV
-          else
-            echo "SSH_HOST=${{ secrets.VH_HOST_STAGING }}" >> $GITHUB_ENV
-          fi
+          # Explicit per-environment selection with no fall-through. The previous
+          # if/else sent anything that was not "production" to the staging host,
+          # so a new option would have silently deployed to the wrong VM.
+          case "${{ inputs.environment }}" in
+            production)     echo "SSH_HOST=${{ secrets.VH_HOST_PRODUCTION }}"     >> $GITHUB_ENV ;;
+            production-new) echo "SSH_HOST=${{ secrets.VH_HOST_PRODUCTION_NEW }}" >> $GITHUB_ENV ;;
+            staging)        echo "SSH_HOST=${{ secrets.VH_HOST_STAGING }}"        >> $GITHUB_ENV ;;
+            staging-new)    echo "SSH_HOST=${{ secrets.VH_HOST_STAGING_NEW }}"    >> $GITHUB_ENV ;;
+            *) echo "Unknown environment: ${{ inputs.environment }}" >&2; exit 1 ;;
+          esac
           echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
           echo "DEPLOY_ENV=${{ inputs.environment }}" >> $GITHUB_ENV
 
@@ -129,8 +138,12 @@ jobs:
           host: ${{ env.SSH_HOST }}
           username: root
           key: ${{ secrets.BBDEPLOYMENT_SSH_PRIVATE_KEY }}
+          # The on-prem VMs are only reachable through the bastion.
+          proxy_host: ${{ secrets.SSH_PROXY_HOST }}
+          proxy_username: ${{ secrets.SSH_PROXY_USERNAME }}
+          proxy_key: ${{ secrets.BBDEPLOYMENT_SSH_PRIVATE_KEY }}
           source: "docker-compose.yml"
-          target: /opt/vh/vh-srv-accounting/
+          target: /root/vh-docker/apps/vh-srv-accounting/
 
       - name: Deploy to VM
         uses: appleboy/ssh-action@v1
@@ -138,21 +151,24 @@ jobs:
           host: ${{ env.SSH_HOST }}
           username: root
           key: ${{ secrets.BBDEPLOYMENT_SSH_PRIVATE_KEY }}
+          # The on-prem VMs are only reachable through the bastion.
+          proxy_host: ${{ secrets.SSH_PROXY_HOST }}
+          proxy_username: ${{ secrets.SSH_PROXY_USERNAME }}
+          proxy_key: ${{ secrets.BBDEPLOYMENT_SSH_PRIVATE_KEY }}
           envs: SHORT_SHA,DEPLOY_ENV
           script: |
             set -e
-            cd /opt/vh/vh-srv-accounting
+            cd /root/vh-docker/apps/vh-srv-accounting
 
             if [ ! -f .env ]; then
-              echo "ERROR: .env file missing at /opt/vh/vh-srv-accounting/.env"
+              echo "ERROR: .env file missing at /root/vh-docker/apps/vh-srv-accounting/.env"
               exit 1
             fi
 
             export IMAGE_NAME=ghcr.io/bnei-baruch/vh-srv-accounting:$SHORT_SHA
 
-            if [ "$DEPLOY_ENV" = "staging" ]; then
-              export COMPOSE_PROFILES=staging
-            fi
+            # No staging-DB choreography: staging now uses the shared vh-db host
+            # (pgsql4) like production, so the on-box accountingdb container is gone.
 
             docker compose pull vh-srv-accounting
             docker compose up -d --remove-orphans
